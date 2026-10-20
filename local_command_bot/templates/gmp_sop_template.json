@@ -1,0 +1,42 @@
+{
+  "template_name": "Standard GMP SOP Pharmaceutical Blueprint",
+  "version": "1.0",
+  "disclaimer": "DRAFT — CHỜ RÀ SOÁT VÀ PHÊ DUYỆT (CHƯA CÓ GIÁ TRỊ PHÁP LÝ CHÍNH THỨC)",
+  "standard_sections": [
+    {
+      "order": 1,
+      "title": "Mục đích và Phạm vi Áp dụng",
+      "required_elements": ["Mục đích", "Phạm vi khu vực", "Đối tượng thực hiện"]
+    },
+    {
+      "order": 2,
+      "title": "Trách nhiệm và Quyền hạn",
+      "required_elements": ["Người thực hiện", "Người kiểm tra (QC)", "Người phê duyệt (QA)"]
+    },
+    {
+      "order": 3,
+      "title": "Thiết bị, Dụng cụ và Hóa chất Khử trùng",
+      "required_elements": ["Danh mục hóa chất", "Nồng độ quy định", "Dụng cụ lau chuyên dụng phòng sạch"]
+    },
+    {
+      "order": 4,
+      "title": "Quy trình Thao tác Chi tiết Từng bước",
+      "required_elements": ["Chuẩn bị", "Trình tự thao tác (từ trên xuống dưới, từ trong ra ngoài)", "Thời gian tiếp xúc hóa chất"]
+    },
+    {
+      "order": 5,
+      "title": "Giám sát Môi trường và Đánh giá Hiệu quả",
+      "required_elements": ["Tần suất lấy mẫu vi sinh", "Giới hạn cảnh báo và hành động", "Xử lý khi vượt ngưỡng"]
+    },
+    {
+      "order": 6,
+      "title": "Hồ sơ, Biểu mẫu và Lưu trữ",
+      "required_elements": ["Biểu mẫu nhật ký vệ sinh", "Thời gian lưu trữ hồ sơ theo GMP"]
+    }
+  ],
+  "default_references": [
+    "Thông tư 35/2018/TT-BYT quy định Thực hành tốt sản xuất thuốc (GMP-WHO)",
+    "Thông tư 29/2020/TT-BYT sửa đổi bổ sung Thông tư 35/2018/TT-BYT",
+    "Dược điển Việt Nam V - Phụ lục kiểm nghiệm vi sinh"
+  ]
+}

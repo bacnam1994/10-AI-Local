@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-command-bot"
+version = "1.0.0"
+description = "Local Command Bot — Multi-Cloud AI Document Orchestrator"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyside6>=6.6.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.7.0",
+    "python-docx>=1.1.0",
+    "reportlab>=4.1.0",
+    "keyring>=24.0.0",
+    "pywin32-ctypes>=0.2.2; sys_platform == 'win32'",
+    "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pyinstaller>=6.5.0",
+]
+
+[project.scripts]
+local-command-bot = "app.main:main"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
