@@ -9,7 +9,13 @@ from app.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 
-# Verified Vietnamese Pharmaceutical Regulatory References (Curated Knowledge Base)
+# Verification status constants
+STATUS_CATALOG_SUGGESTION = "Đối chiếu danh mục chuẩn (Cần kiểm tra hiệu lực thực tế)"
+STATUS_UNVERIFIED = "Chưa xác minh — cần tra cứu thủ công"
+STATUS_VERIFIED_ONLINE = "Đã xác minh trực tuyến"
+STATUS_NEEDS_REVIEW = "Cần kiểm tra lại hiệu lực văn bản"
+
+# Curated Vietnamese Pharmaceutical Regulatory References (Suggested Catalog)
 KNOWN_GMP_REFERENCES = [
     {
         "doc_number": "35/2018/TT-BYT",
@@ -19,7 +25,7 @@ KNOWN_GMP_REFERENCES = [
         "issue_date": "2018-11-22",
         "url": "https://moh.gov.vn/van-ban-chi-dao-dieu-hanh/-/asset_publisher/vTXGwh6tqybb/content/thong-tu-so-35-2018-tt-byt",
         "is_mandatory": True,
-        "status": "Có hiệu lực thi hành"
+        "status": STATUS_CATALOG_SUGGESTION
     },
     {
         "doc_number": "29/2020/TT-BYT",
@@ -29,7 +35,7 @@ KNOWN_GMP_REFERENCES = [
         "issue_date": "2020-12-31",
         "url": "https://dav.gov.vn/van-ban-phap-quy",
         "is_mandatory": True,
-        "status": "Có hiệu lực thi hành"
+        "status": STATUS_CATALOG_SUGGESTION
     },
     {
         "doc_number": "DĐVN V",
@@ -39,7 +45,7 @@ KNOWN_GMP_REFERENCES = [
         "issue_date": "2018-01-01",
         "url": None,
         "is_mandatory": True,
-        "status": "Có hiệu lực thi hành"
+        "status": STATUS_CATALOG_SUGGESTION
     },
     {
         "doc_number": "WHO TRS 986 Annex 2",
@@ -49,7 +55,7 @@ KNOWN_GMP_REFERENCES = [
         "issue_date": "2014-01-01",
         "url": "https://www.who.int/publications/m/item/trs986-annex2",
         "is_mandatory": False,
-        "status": "Khuyến nghị / Hướng dẫn kỹ thuật quốc tế"
+        "status": "Khuyến nghị kỹ thuật quốc tế (Cần kiểm tra phạm vi áp dụng)"
     }
 ]
 
@@ -61,12 +67,16 @@ class ResearchEngine:
         self.state_store = state_store
 
     async def research_for_job(self, job_id: str, query_terms: list[str]) -> list[SourceReference]:
-        """Lookup and store source references for a job without hallucinating citations."""
+        """Lookup and store source references for a job.
+        
+        Important: Curated references are suggestions from internal catalog and are
+        NOT marked as verified_at unless an actual verification has occurred.
+        """
         recorded_refs: list[SourceReference] = []
 
         for idx, term in enumerate(query_terms):
             matched = False
-            # Check against curated verified references
+            # Check against curated reference suggestions
             for known in KNOWN_GMP_REFERENCES:
                 if (known["doc_number"] and known["doc_number"].lower() in term.lower()) or \
                    any(w in term.lower() for w in ["35/2018", "gmp", "dược điển", "who trs"]):
@@ -80,16 +90,16 @@ class ResearchEngine:
                         issue_date=known["issue_date"],
                         url=known["url"],
                         status=known["status"],
-                        clause_used="Phụ lục 1 / Điều khoản quy định liên quan",
+                        clause_used=None,  # Do not speculate on specific clauses without concrete basis
                         is_mandatory=known["is_mandatory"],
-                        verified_at=utc_now()
+                        verified_at=None   # Online verification not performed; do not auto-stamp timestamp
                     )
                     self.state_store.save_source_reference(ref)
                     recorded_refs.append(ref)
                     matched = True
                     break
 
-            # If not verified in official catalog, flag explicitly as UNVERIFIED
+            # If not in curated catalog, flag explicitly as UNVERIFIED
             if not matched:
                 ref = SourceReference(
                     reference_id=f"ref_{job_id}_{idx + 1}",
@@ -100,7 +110,7 @@ class ResearchEngine:
                     doc_type="Tài liệu tham khảo",
                     issue_date=None,
                     url=None,
-                    status="Chưa xác minh — cần kiểm tra thủ công",
+                    status=STATUS_UNVERIFIED,
                     clause_used=None,
                     is_mandatory=False,
                     verified_at=None
@@ -108,8 +118,26 @@ class ResearchEngine:
                 self.state_store.save_source_reference(ref)
                 recorded_refs.append(ref)
 
+        catalog_count = sum(1 for r in recorded_refs if r.status != STATUS_UNVERIFIED)
+        unverified_count = len(recorded_refs) - catalog_count
+
         self.state_store.append_log(
             job_id, "INFO",
-            f"Đã lập hồ sơ nguồn tham chiếu: {len(recorded_refs)} tài liệu (Xác minh & Cảnh báo chưa kiểm chứng)."
+            f"Đã lập hồ sơ {len(recorded_refs)} nguồn tham chiếu: {catalog_count} từ danh mục gợi ý (chờ kiểm tra thực tế), {unverified_count} chưa xác minh."
         )
         return recorded_refs
+
+    def mark_reference_verified(
+        self,
+        reference: SourceReference,
+        verified_status: str = STATUS_VERIFIED_ONLINE,
+        clause_used: Optional[str] = None
+    ) -> SourceReference:
+        """Mark a reference as verified after actual manual or online check."""
+        reference.status = verified_status
+        reference.verified_at = utc_now()
+        if clause_used:
+            reference.clause_used = clause_used
+        self.state_store.save_source_reference(reference)
+        return reference
+

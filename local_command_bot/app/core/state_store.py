@@ -339,7 +339,8 @@ class StateStore:
                     doc_number = excluded.doc_number,
                     status = excluded.status,
                     clause_used = excluded.clause_used,
-                    url = excluded.url
+                    url = excluded.url,
+                    verified_at = excluded.verified_at
             """, (
                 ref.reference_id,
                 ref.job_id,

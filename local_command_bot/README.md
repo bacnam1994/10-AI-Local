@@ -1,37 +1,34 @@
-# LOCAL COMMAND BOT — MULTI-CLOUD AI DOCUMENT ORCHESTRATOR
+# LOCAL COMMAND BOT — STREAMLINED AI DOCUMENT ORCHESTRATOR
 
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?style=flat&logo=windows)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python)
 ![PySide6](https://img.shields.io/badge/UI-PySide6%20Qt6-41CD52?style=flat&logo=qt)
-![License](https://img.shields.io/badge/Status-Production%20Ready-success)
-![Tests](https://img.shields.io/badge/Tests-32%2F32%20Passing-brightgreen)
+![Status](https://img.shields.io/badge/Status-Streamlined%20Beta-blue)
+![Tests](https://img.shields.io/badge/Tests-44%20Passed%20%7C%204%20Optional%20Skipped-brightgreen)
 
-> **Bot Chỉ huy Local**: Tự động hóa phân tích yêu cầu dài, lập kế hoạch đồ thị (DAG), phân bổ tác vụ cho nhiều nhà cung cấp Cloud AI (OpenAI, Anthropic Claude, Google Gemini), kiểm soát chất lượng qua vòng lặp Reviewer-Writer, và xuất bản tài liệu hoàn chỉnh (DOCX, PDF, Markdown).
+> **Bot Chỉ huy Local (Kiến trúc Tinh gọn)**: Phân tích yêu cầu, lập kế hoạch đồ thị (DAG) qua Local AI (Ollama `llama3.1`), soạn thảo nội dung chuyên sâu qua Cloud AI Gateway (OmniRoute `auto`), kiểm tra chất lượng bằng mã nguồn (Code-First Validator) trước khi sửa mục tiêu, và xuất bản tài liệu chuẩn DOCX/SOP.
 
 ---
 
-## 🌟 TÍNH NĂNG NỔI BẬT
+## 🌟 KIẾN TRÚC ĐÍCH & TÍNH NĂNG CỐT LÕI
 
-1. **Orchestrator & DAG Scheduler**:
-   - Phân tích yêu cầu tự nhiên thành `JobPlan` có cấu trúc.
-   - Xây dựng đồ thị có hướng không chu trình (DAG), giải quyết thứ tự topo và chạy song song các nhiệm vụ độc lập.
+1. **Luồng Tinh gọn Mặc định (Streamlined Pipeline)**:
+   - **Local AI (Ollama)**: Phân tích prompt tự nhiên, thiết kế đồ thị DAG vừa đủ, giữ vai trò tổng chỉ huy và kiểm định.
+   - **Cloud AI (OmniRoute)**: Soạn thảo văn bản chuyên sâu song song qua giao thức tương thích OpenAI chuẩn.
+   - **Code-First QA**: Kiểm định cấu trúc, mục thiếu, placeholder bằng code trước; chỉ gọi AI sửa khi thực sự phát hiện lỗi ngữ nghĩa, tối ưu chi phí và thời gian.
+
+2. **Xác minh Pháp quy Trung thực (Regulatory Verification)**:
+   - Danh mục quy chuẩn GMP Việt Nam (Thông tư 35/2018/TT-BYT, DĐVN V,...) được đối chiếu như danh mục gợi ý chuẩn.
+   - Không tự động gán dấu thời gian giả lập `verified_at` khi chưa tra cứu trực tuyến hoặc được chuyên viên phê duyệt.
+   - Minh bạch trạng thái: `Đối chiếu danh mục chuẩn (Cần kiểm tra hiệu lực thực tế)` vs `Chưa xác minh — cần tra cứu thủ công`.
+
+3. **Orchestrator & DAG Scheduler Độc lập**:
+   - Tách biệt rõ 4 giai đoạn nghiệp vụ: Lập kế hoạch (Planning) ➔ Tra cứu (Research) ➔ Chạy DAG (Execution) ➔ Tổng hợp & Xuất bản (Synthesis).
    - Concurrency pool có giới hạn, hỗ trợ Exponential Backoff Retry với Jitter.
    - Trần ngân sách (Budget Cap) và cơ chế ngắt an toàn khi vượt ngưỡng.
 
-2. **Hỗ trợ Đa Cloud AI Thống nhất**:
-   - **OpenAI**: Chat Completions (GPT-4o, GPT-4o-mini).
-   - **Anthropic**: Messages API (Claude 3.5 Sonnet, Haiku).
-   - **Google Gemini**: REST API (Gemini 1.5 Pro, Flash, 2.0 Flash).
-   - **Mock Adapter**: Chế độ Dry Run và kiểm thử 100% offline không phát sinh chi phí.
-
-3. **Vòng lặp Kiểm soát Chất lượng (Reviewer & Quality Loop)**:
-   - Reviewer đánh giá 8 khía cạnh cốt lõi (Đầy đủ, Logic, Thuật ngữ, Trùng lặp, Mâu thuẫn, Trích dẫn, Căn cứ kiểm chứng, Tuân thủ).
-   - Chỉ dẫn Writer sửa lỗi theo danh sách điểm yếu (tối đa N vòng cấu hình).
-
 4. **Tạo Tài liệu Chuyên nghiệp (Document Engine)**:
-   - **DOCX**: Trang bìa, mã tài liệu, phiên bản, Bảng lịch sử sửa đổi, Bảng quy chuẩn tham chiếu, mục lục tự động, header/footer, đánh số trang.
-   - **PDF**: Tạo trực tiếp qua ReportLab với canvas đánh số trang động 2-pass.
-   - **Markdown**: Bản lưu trữ nguồn sạch.
+   - **DOCX (Ưu tiên chính)**: Trang bìa, mã tài liệu, phiên bản, Bảng lịch sử sửa đổi, Bảng quy chuẩn tham chiếu, mục lục tự động, header/footer, đánh số trang.
    - Tuân thủ tiêu chuẩn SOP Dược phẩm GMP: Tự động đóng dấu `DRAFT — CHỜ RÀ SOÁT VÀ PHÊ DUYỆT`.
 
 5. **Độ tin cậy & An toàn Dữ liệu**:
@@ -117,12 +114,24 @@ local_command_bot/
 
 ---
 
-## 🧪 CHẠY TOÀN BỘ KIỂM THỬ (TEST SUITE)
+## 🧪 HỆ THỐNG KIỂM THỬ 3 TẦNG (TESTING FRAMEWORK)
 
+Ứng dụng áp dụng tiêu chí đánh giá nghiêm ngặt theo 3 tầng kiểm thử:
+
+1. **Tầng 1 — Unit Tests (Kiểm thử chức năng nội bộ & An toàn)**:
+   - Bao quát toàn bộ: Lập kế hoạch DAG, concurrency, retry exponential backoff, ngắt an toàn budget, crash recovery SQLite, bộ lọc chống lộ secret trong log, chống path traversal, không ghi đè file, và kiểm tra pháp quy trung thực.
+2. **Tầng 2 — Integration Tests (Kiểm thử tích hợp dịch vụ thật Ollama & OmniRoute)**:
+   - File: `tests/test_real_api_optional.py`.
+   - Tự động phát hiện dịch vụ live: kiểm tra kết nối tới Ollama (`http://localhost:11434`) và OmniRoute Gateway (`http://localhost:20128`).
+   - Tự động bỏ qua an toàn (skip) khi môi trường offline để đảm bảo CI/CD và bộ unit test không bị nghẽn.
+3. **Tầng 3 — End-to-End Tests (Quy trình hoàn chỉnh)**:
+   - Kiểm thử tạo tài liệu thực tế với văn bản dài, tổng hợp và xuất bản DOCX chuẩn, xác thực format và bảng kiểm định.
+
+### Lệnh chạy kiểm thử:
 ```powershell
-d:\10 AI Local\.venv\Scripts\python.exe -m pytest tests -v
+d:\10 AI Local\.venv\Scripts\python.exe -m pytest -v
 ```
-*(Kết quả: 31 PASSED, 1 SKIPPED, 0 FAILED).*
+*(Kết quả mặc định khi offline/mock: 44 PASSED, 4 SKIPPED, 0 FAILED).*
 
 ---
 

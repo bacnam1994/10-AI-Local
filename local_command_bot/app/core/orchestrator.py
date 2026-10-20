@@ -91,24 +91,19 @@ class Orchestrator:
         if self.on_task_updated:
             self.on_task_updated(task)
 
-    async def run_job(
+    def _resolve_routing(
         self,
         job: Job,
-        default_provider: str = "omniroute",
-        default_model: str = "auto",
-        planner_provider: Optional[str] = None,
-        planner_model: Optional[str] = None,
-        writer_provider: Optional[str] = None,
-        writer_model: Optional[str] = None,
-        reviewer_provider: Optional[str] = None,
-        reviewer_model: Optional[str] = None,
-    ) -> Job:
-        """Execute complete lifecycle of a Job."""
-        self._is_paused = False
-        self._is_cancelled = False
-        self._pause_event.set()
-
-        # Streamlined routing defaults: Local AI (Ollama) -> Cloud Gateway (OmniRoute)
+        default_provider: str,
+        default_model: str,
+        planner_provider: Optional[str],
+        planner_model: Optional[str],
+        writer_provider: Optional[str],
+        writer_model: Optional[str],
+        reviewer_provider: Optional[str],
+        reviewer_model: Optional[str],
+    ) -> tuple[str, str, str, str, str, str]:
+        """Resolve effective provider and model mappings for each stage."""
         if default_provider in ("mock", "test") or job.dry_run:
             planner_prov = planner_provider or "mock"
             planner_mod = planner_model or "mock-model"
@@ -124,197 +119,240 @@ class Orchestrator:
             reviewer_prov = reviewer_provider or writer_prov
             reviewer_mod = reviewer_model or writer_mod
 
-        self._reviewer_prov = reviewer_prov
-        self._reviewer_mod = reviewer_mod
+        return planner_prov, planner_mod, writer_prov, writer_mod, reviewer_prov, reviewer_mod
 
-        try:
-            # 1. Planning Phase (if not already planned)
-            if not job.plan:
-                job.status = JobStatus.PLANNING
+    async def _run_planning_stage(
+        self,
+        job: Job,
+        planner_prov: str,
+        planner_mod: str,
+        writer_prov: str,
+        writer_mod: str
+    ) -> None:
+        """Stage 1: Analyze user request and generate structured task graph."""
+        job.status = JobStatus.PLANNING
+        self._notify_job(job)
+        self._log(
+            job.job_id, "INFO",
+            f"AI Tổng Chỉ Huy ({planner_prov} / {planner_mod}): Bắt đầu phân tích yêu cầu và lập kế hoạch công việc (JobPlan)..."
+        )
+
+        plan_task = Task(
+            task_id="T-PLANNER",
+            job_id=job.job_id,
+            role=TaskRole.PLANNER,
+            provider=planner_prov,
+            model=planner_mod,
+            input={
+                "title": "AI Tổng Chỉ Huy: Phân tích Yêu cầu & Thiết kế Đồ thị DAG",
+                "instructions": job.prompt
+            },
+            status=TaskStatus.RUNNING,
+            dependencies=[]
+        )
+        self._notify_task(plan_task)
+
+        plan, plan_usage = await self.planner.create_plan(
+            user_prompt=job.prompt,
+            provider_name=planner_prov,
+            model=planner_mod,
+            budget_limit=job.budget_limit_usd,
+            time_limit=job.timeout_seconds,
+            dry_run=job.dry_run
+        )
+        job.plan = plan
+        job.total_tokens += plan_usage.total_tokens
+        job.total_cost_usd += plan_usage.estimated_cost_usd
+        self._notify_job(job)
+
+        plan_task.status = TaskStatus.SUCCEEDED
+        plan_task.output_content = (
+            f"Đã lập kế hoạch DAG thành công. Mục tiêu: '{plan.objective}' ({len(plan.tasks)} nhiệm vụ)."
+        )
+        plan_task.usage = plan_usage
+        self._notify_task(plan_task)
+
+        tasks = self.planner.plan_to_tasks(job.job_id, plan, writer_prov, writer_mod)
+        for t in tasks:
+            self._notify_task(t)
+
+        self._log(
+            job.job_id, "INFO",
+            f"AI Tổng Chỉ Huy đã phê duyệt kế hoạch. Đã phân công {len(tasks)} nhiệm vụ cho Cloud Worker ({writer_prov}). Mục tiêu: '{plan.objective}'."
+        )
+
+    async def _run_research_stage(self, job: Job) -> None:
+        """Stage 2: Lookup and track regulatory standards and references."""
+        if job.plan and job.plan.references_to_consult:
+            self._log(job.job_id, "INFO", "Tiến hành tra cứu danh mục quy chuẩn và tài liệu tham chiếu...")
+            await self.researcher.research_for_job(job.job_id, job.plan.references_to_consult)
+
+    async def _run_execution_stage(self, job: Job, scheduler: DAGScheduler) -> None:
+        """Stage 3: Execute task graph via DAG scheduler with concurrency and retry control."""
+        job.status = JobStatus.RUNNING
+        self._notify_job(job)
+
+        all_tasks = self.state_store.get_tasks_for_job(job.job_id)
+        scheduler.validate_dag(all_tasks)
+
+        while True:
+            if self._is_cancelled:
+                job.status = JobStatus.CANCELLED
                 self._notify_job(job)
-                self._log(
-                    job.job_id, "INFO",
-                    f"AI Tổng Chỉ Huy ({planner_prov} / {planner_mod}): Bắt đầu phân tích yêu cầu và lập kế hoạch công việc (JobPlan)..."
-                )
+                self._log(job.job_id, "WARN", "Tiến trình công việc đã bị người dùng hủy bỏ.")
+                return
 
-                plan_task = Task(
-                    task_id="T-PLANNER",
-                    job_id=job.job_id,
-                    role=TaskRole.PLANNER,
-                    provider=planner_prov,
-                    model=planner_mod,
-                    input={
-                        "title": "AI Tổng Chỉ Huy: Phân tích Yêu cầu & Thiết kế Đồ thị DAG",
-                        "instructions": job.prompt
-                    },
-                    status=TaskStatus.RUNNING,
-                    dependencies=[]
-                )
-                self._notify_task(plan_task)
-
-                plan, plan_usage = await self.planner.create_plan(
-                    user_prompt=job.prompt,
-                    provider_name=planner_prov,
-                    model=planner_mod,
-                    budget_limit=job.budget_limit_usd,
-                    time_limit=job.timeout_seconds,
-                    dry_run=job.dry_run
-                )
-                job.plan = plan
-                job.total_tokens += plan_usage.total_tokens
-                job.total_cost_usd += plan_usage.estimated_cost_usd
+            if self._is_paused:
+                job.status = JobStatus.PAUSED
                 self._notify_job(job)
-
-                plan_task.status = TaskStatus.SUCCEEDED
-                plan_task.output_content = (
-                    f"Đã lập kế hoạch DAG thành công. Mục tiêu: '{plan.objective}' ({len(plan.tasks)} nhiệm vụ)."
-                )
-                plan_task.usage = plan_usage
-                self._notify_task(plan_task)
-
-                # Convert plan into tasks in state store using writer_prov, writer_mod
-                tasks = self.planner.plan_to_tasks(job.job_id, plan, writer_prov, writer_mod)
-                for t in tasks:
-                    self._notify_task(t)
-
-                self._log(
-                    job.job_id, "INFO",
-                    f"AI Tổng Chỉ Huy đã phê duyệt kế hoạch. Đã phân công {len(tasks)} nhiệm vụ cho Cloud Worker ({writer_prov}). Mục tiêu: '{plan.objective}'."
-                )
-
-            # 2. Research Phase
-            if job.plan and job.plan.references_to_consult:
-                self._log(job.job_id, "INFO", "Tiến hành tra cứu và xác minh các quy chuẩn quy định...")
-                await self.researcher.research_for_job(job.job_id, job.plan.references_to_consult)
-
-            # 3. Task Execution Loop via DAG Scheduler
-            job.status = JobStatus.RUNNING
-            self._notify_job(job)
-
-            scheduler = DAGScheduler(self.state_store, max_concurrency=job.max_concurrency)
-            all_tasks = self.state_store.get_tasks_for_job(job.job_id)
-
-            # Validate DAG structure
-            scheduler.validate_dag(all_tasks)
-
-            # Loop until all tasks finish, fail, or cancel
-            while True:
-                # Check for cancellation
+                self._log(job.job_id, "WARN", "Tiến trình công việc tạm dừng. Đang chờ người dùng tiếp tục (Resume)...")
+                await self._pause_event.wait()
                 if self._is_cancelled:
                     job.status = JobStatus.CANCELLED
                     self._notify_job(job)
-                    self._log(job.job_id, "WARN", "Tiến trình công việc đã bị người dùng hủy bỏ.")
-                    return job
-
-                # Check for pause
-                if self._is_paused:
-                    job.status = JobStatus.PAUSED
-                    self._notify_job(job)
-                    self._log(job.job_id, "WARN", "Tiến trình công việc tạm dừng. Đang chờ người dùng tiếp tục (Resume)...")
-                    await self._pause_event.wait()
-                    if self._is_cancelled:
-                        job.status = JobStatus.CANCELLED
-                        self._notify_job(job)
-                        return job
-                    job.status = JobStatus.RUNNING
-                    self._notify_job(job)
-
-                # Check budget limit
-                if job.total_cost_usd >= job.budget_limit_usd:
-                    job.status = JobStatus.FAILED
-                    job.error_message = (
-                        f"Dừng công việc: Chi phí ước tính (${job.total_cost_usd:.4f}) đã vượt trần ngân sách (${job.budget_limit_usd:.2f})"
-                    )
-                    self._notify_job(job)
-                    self._log(job.job_id, "ERROR", job.error_message)
-                    raise BudgetExceededError(job.error_message)
-
-                # Check runnable tasks
-                runnable_tasks = scheduler.get_runnable_tasks(job.job_id)
-                current_all_tasks = self.state_store.get_tasks_for_job(job.job_id)
-
-                # Check completion conditions
-                incomplete_tasks = [
-                    t for t in current_all_tasks
-                    if t.status in (TaskStatus.PENDING, TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.RETRYING)
-                ]
-                failed_tasks = [t for t in current_all_tasks if t.status == TaskStatus.FAILED]
-
-                if failed_tasks:
-                    job.status = JobStatus.FAILED
-                    job.error_message = f"Một hoặc nhiều nhiệm vụ con thất bại: {[t.task_id for t in failed_tasks]}"
-                    self._notify_job(job)
-                    self._log(job.job_id, "ERROR", job.error_message)
-                    return job
-
-                if not incomplete_tasks:
-                    # All tasks succeeded!
-                    self._log(job.job_id, "INFO", "Toàn bộ nhiệm vụ trong đồ thị DAG đã hoàn thành thành công.")
-                    break
-
-                if not runnable_tasks:
-                    # Waiting for running tasks or deadlock
-                    running = [t for t in current_all_tasks if t.status == TaskStatus.RUNNING]
-                    if not running:
-                        # Deadlock or unmet dependencies
-                        job.status = JobStatus.FAILED
-                        job.error_message = "Không có nhiệm vụ nào sẵn sàng chạy mặc dù vẫn còn nhiệm vụ chưa hoàn tất (Bế tắc phụ thuộc)."
-                        self._notify_job(job)
-                        self._log(job.job_id, "ERROR", job.error_message)
-                        return job
-                    await asyncio.sleep(0.3)
-                    continue
-
-                # Launch runnable tasks up to max_concurrency
-                async def _worker(task_item: Task) -> Task:
-                    return await scheduler.execute_task_with_retry(
-                        task=task_item,
-                        executor_fn=lambda t: self._execute_task_logic(t, job),
-                        max_retries=job.max_retries
-                    )
-
-                # Execute batch concurrently
-                results = await asyncio.gather(*[_worker(t) for t in runnable_tasks], return_exceptions=True)
-
-                for r in results:
-                    if isinstance(r, Task):
-                        job.total_tokens += r.usage.total_tokens
-                        job.total_cost_usd += r.usage.estimated_cost_usd
-                        self._notify_task(r)
-                    elif isinstance(r, Exception):
-                        logger.error(f"Task batch exception: {r}")
-
+                    return
+                job.status = JobStatus.RUNNING
                 self._notify_job(job)
 
-            # 4. Synthesis & Document Building Phase
-            self._log(
-                job.job_id, "INFO",
-                f"AI Tổng Chỉ Huy ({planner_prov} / {planner_mod}): Tiến hành kiểm định, tổng hợp tài liệu và xuất bản (DOCX, PDF, Markdown)..."
-            )
+            if job.total_cost_usd >= job.budget_limit_usd:
+                job.status = JobStatus.FAILED
+                job.error_message = (
+                    f"Dừng công việc: Chi phí ước tính (${job.total_cost_usd:.4f}) đã vượt trần ngân sách (${job.budget_limit_usd:.2f})"
+                )
+                self._notify_job(job)
+                self._log(job.job_id, "ERROR", job.error_message)
+                raise BudgetExceededError(job.error_message)
 
-            synth_task = Task(
-                task_id="T-FINAL",
-                job_id=job.job_id,
-                role=TaskRole.AUDITOR,
-                provider=planner_prov,
-                model=planner_mod,
-                input={
-                    "title": "AI Tổng Chỉ Huy: Kiểm Định, Tổng Hợp & Xuất Bản Toàn Văn",
-                    "instructions": "Tổng hợp các phân đoạn, kiểm định tính toàn vẹn và tạo tài liệu DOCX, PDF, MD",
-                    "section_order": 9999
-                },
-                status=TaskStatus.RUNNING,
-                dependencies=[t.task_id for t in self.state_store.get_tasks_for_job(job.job_id) if t.task_id != "T-PLANNER"]
-            )
-            self._notify_task(synth_task)
+            runnable_tasks = scheduler.get_runnable_tasks(job.job_id)
+            current_all_tasks = self.state_store.get_tasks_for_job(job.job_id)
 
-            generated_files = await self._synthesize_documents(job)
+            incomplete_tasks = [
+                t for t in current_all_tasks
+                if t.status in (TaskStatus.PENDING, TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.RETRYING)
+            ]
+            failed_tasks = [t for t in current_all_tasks if t.status == TaskStatus.FAILED]
+
+            if failed_tasks:
+                job.status = JobStatus.FAILED
+                job.error_message = f"Một hoặc nhiều nhiệm vụ con thất bại: {[t.task_id for t in failed_tasks]}"
+                self._notify_job(job)
+                self._log(job.job_id, "ERROR", job.error_message)
+                return
+
+            if not incomplete_tasks:
+                self._log(job.job_id, "INFO", "Toàn bộ nhiệm vụ trong đồ thị DAG đã hoàn thành thành công.")
+                break
+
+            if not runnable_tasks:
+                running = [t for t in current_all_tasks if t.status == TaskStatus.RUNNING]
+                if not running:
+                    job.status = JobStatus.FAILED
+                    job.error_message = "Không có nhiệm vụ nào sẵn sàng chạy mặc dù vẫn còn nhiệm vụ chưa hoàn tất (Bế tắc phụ thuộc)."
+                    self._notify_job(job)
+                    self._log(job.job_id, "ERROR", job.error_message)
+                    return
+                await asyncio.sleep(0.3)
+                continue
+
+            async def _worker(task_item: Task) -> Task:
+                return await scheduler.execute_task_with_retry(
+                    task=task_item,
+                    executor_fn=lambda t: self._execute_task_logic(t, job),
+                    max_retries=job.max_retries
+                )
+
+            results = await asyncio.gather(*[_worker(t) for t in runnable_tasks], return_exceptions=True)
+
+            for r in results:
+                if isinstance(r, Task):
+                    job.total_tokens += r.usage.total_tokens
+                    job.total_cost_usd += r.usage.estimated_cost_usd
+                    self._notify_task(r)
+                elif isinstance(r, Exception):
+                    logger.error(f"Task batch exception: {r}")
+
+            self._notify_job(job)
+
+    async def _run_synthesis_stage(self, job: Job, planner_prov: str, planner_mod: str) -> list[str]:
+        """Stage 4: Synthesize drafted sections and output publication documents."""
+        self._log(
+            job.job_id, "INFO",
+            f"AI Tổng Chỉ Huy ({planner_prov} / {planner_mod}): Tiến hành kiểm định, tổng hợp tài liệu và xuất bản (DOCX, PDF, Markdown)..."
+        )
+
+        synth_task = Task(
+            task_id="T-FINAL",
+            job_id=job.job_id,
+            role=TaskRole.AUDITOR,
+            provider=planner_prov,
+            model=planner_mod,
+            input={
+                "title": "AI Tổng Chỉ Huy: Kiểm Định, Tổng Hợp & Xuất Bản Toàn Văn",
+                "instructions": "Tổng hợp các phân đoạn, kiểm định tính toàn vẹn và tạo tài liệu DOCX, PDF, MD",
+                "section_order": 9999
+            },
+            status=TaskStatus.RUNNING,
+            dependencies=[t.task_id for t in self.state_store.get_tasks_for_job(job.job_id) if t.task_id != "T-PLANNER"]
+        )
+        self._notify_task(synth_task)
+
+        generated_files = await self._synthesize_documents(job)
+
+        synth_task.status = TaskStatus.SUCCEEDED
+        synth_task.output_content = f"Đã xuất bản thành công {len(generated_files)} tệp: {', '.join(Path(f).name for f in generated_files)}"
+        self._notify_task(synth_task)
+
+        return generated_files
+
+    async def run_job(
+        self,
+        job: Job,
+        default_provider: str = "omniroute",
+        default_model: str = "auto",
+        planner_provider: Optional[str] = None,
+        planner_model: Optional[str] = None,
+        writer_provider: Optional[str] = None,
+        writer_model: Optional[str] = None,
+        reviewer_provider: Optional[str] = None,
+        reviewer_model: Optional[str] = None,
+    ) -> Job:
+        """Execute complete lifecycle of a Job through separated business stages."""
+        self._is_paused = False
+        self._is_cancelled = False
+        self._pause_event.set()
+
+        planner_prov, planner_mod, writer_prov, writer_mod, rev_prov, rev_mod = self._resolve_routing(
+            job=job,
+            default_provider=default_provider,
+            default_model=default_model,
+            planner_provider=planner_provider,
+            planner_model=planner_model,
+            writer_provider=writer_provider,
+            writer_model=writer_model,
+            reviewer_provider=reviewer_provider,
+            reviewer_model=reviewer_model,
+        )
+        self._reviewer_prov = rev_prov
+        self._reviewer_mod = rev_mod
+
+        try:
+            # Stage 1: Planning Phase
+            if not job.plan:
+                await self._run_planning_stage(job, planner_prov, planner_mod, writer_prov, writer_mod)
+
+            # Stage 2: Research Phase
+            await self._run_research_stage(job)
+
+            # Stage 3: Task Execution Loop via DAG Scheduler
+            scheduler = DAGScheduler(self.state_store, max_concurrency=job.max_concurrency)
+            await self._run_execution_stage(job, scheduler)
+
+            if job.status in (JobStatus.CANCELLED, JobStatus.FAILED):
+                return job
+
+            # Stage 4: Synthesis & Document Building Phase
+            generated_files = await self._run_synthesis_stage(job, planner_prov, planner_mod)
             job.generated_files = generated_files
-
-            synth_task.status = TaskStatus.SUCCEEDED
-            synth_task.output_content = f"Đã xuất bản thành công {len(generated_files)} tệp: {', '.join(Path(f).name for f in generated_files)}"
-            self._notify_task(synth_task)
-
             job.status = JobStatus.SUCCEEDED
             job.completed_at = utc_now()
             self._notify_job(job)
@@ -330,6 +368,7 @@ class Orchestrator:
             self._notify_job(job)
             self._log(job.job_id, "ERROR", f"Công việc thất bại với lỗi: {str(e)}")
             return job
+
 
     async def _execute_task_logic(self, task: Task, job: Job) -> Task:
         """Internal business logic for executing a single task with targeted quality verification."""

@@ -243,8 +243,40 @@ class MainWindow(QMainWindow):
         layout.addWidget(out_group)
 
         # Group 3: AI Provider & Models Selection
-        model_group = QGroupBox("3. Cổng AI: OmniRoute Gateway (Cloud) & Ollama (Local)")
+        model_group = QGroupBox("3. Cổng AI: Mặc định Luồng Tinh Gọn (Ollama ➔ OmniRoute)")
         model_layout = QVBoxLayout(model_group)
+
+        # Mode Selection
+        row_mode = QHBoxLayout()
+        row_mode.addWidget(QLabel("Chế độ phối hợp:"))
+        self.combo_pipeline_mode = QComboBox()
+        self.combo_pipeline_mode.addItems([
+            "⭐ Luồng Tinh Gọn: Ollama (Local Planner) ➔ OmniRoute (Cloud Writer)",
+            "💻 100% Offline: Chỉ sử dụng Ollama (Chạy trên máy cá nhân)",
+            "☁️ Cloud Gateway: Chỉ sử dụng OmniRoute",
+            "⚙️ Tùy chỉnh Nâng cao / Đa AI thủ công"
+        ])
+        self.combo_pipeline_mode.currentIndexChanged.connect(self._on_pipeline_mode_changed)
+        row_mode.addWidget(self.combo_pipeline_mode)
+        model_layout.addLayout(row_mode)
+
+        # Mode description banner
+        self.lbl_mode_desc = QLabel(
+            "💡 Tinh gọn mặc định: Ollama (llama3.1) lập kế hoạch đồ thị DAG; "
+            "OmniRoute Gateway (auto) soạn thảo chuyên sâu. DOCX tự động xuất bản."
+        )
+        self.lbl_mode_desc.setStyleSheet("color: #38BDF8; font-size: 11px; margin-top: 2px; margin-bottom: 4px;")
+        self.lbl_mode_desc.setWordWrap(True)
+        model_layout.addWidget(self.lbl_mode_desc)
+
+        # Advanced / Custom Providers Frame (Collapsible)
+        self.frame_custom_providers = QFrame()
+        self.frame_custom_providers.setStyleSheet(
+            "background-color: #0F172A; border: 1px solid #334155; border-radius: 6px; padding: 6px;"
+        )
+        custom_layout = QVBoxLayout(self.frame_custom_providers)
+        custom_layout.setContentsMargins(6, 6, 6, 6)
+        custom_layout.setSpacing(6)
 
         # Basic Single Provider Row
         row_prov = QHBoxLayout()
@@ -255,24 +287,24 @@ class MainWindow(QMainWindow):
         ])
         self.combo_provider.currentIndexChanged.connect(self._on_provider_changed)
         row_prov.addWidget(self.combo_provider)
-        model_layout.addLayout(row_prov)
+        custom_layout.addLayout(row_prov)
 
         row_model = QHBoxLayout()
         row_model.addWidget(QLabel("Mô hình AI (Model):"))
         self.combo_model = QComboBox()
         self._populate_model_combo(self.combo_model, "omniroute")
         row_model.addWidget(self.combo_model)
-        model_layout.addLayout(row_model)
+        custom_layout.addLayout(row_model)
 
         # Multi-Agent Role Assignment Toggle
         self.cb_multi_agent = QCheckBox("🎖️ Bật Phân Vai Đa AI (Tổng Chỉ Huy vs Cloud Worker vs Giám Sát)")
         self.cb_multi_agent.setStyleSheet("color: #38BDF8; font-weight: bold; margin-top: 6px;")
-        model_layout.addWidget(self.cb_multi_agent)
+        custom_layout.addWidget(self.cb_multi_agent)
 
         # Multi-Agent Role Frame
         self.frame_multi_agent = QFrame()
         self.frame_multi_agent.setStyleSheet(
-            "background-color: #0F172A; border: 1px solid #334155; border-radius: 6px; padding: 6px;"
+            "background-color: #1E293B; border: 1px solid #475569; border-radius: 6px; padding: 6px;"
         )
         ma_layout = QVBoxLayout(self.frame_multi_agent)
         ma_layout.setContentsMargins(8, 8, 8, 8)
@@ -322,7 +354,10 @@ class MainWindow(QMainWindow):
 
         self.frame_multi_agent.setVisible(False)
         self.cb_multi_agent.toggled.connect(self.frame_multi_agent.setVisible)
-        model_layout.addWidget(self.frame_multi_agent)
+        custom_layout.addWidget(self.frame_multi_agent)
+
+        self.frame_custom_providers.setVisible(False)
+        model_layout.addWidget(self.frame_custom_providers)
 
         # Dry Run Mode Checkbox
         self.cb_dry_run = QCheckBox("Chế độ Dry Run (Chạy giả lập kiểm tra DAG, không tốn token)")
@@ -533,6 +568,30 @@ class MainWindow(QMainWindow):
             combo.setEditable(False)
             combo.addItems(["mock-model", "mock-pro-model"])
 
+    def _on_pipeline_mode_changed(self, index: int):
+        if index == 0:
+            self.lbl_mode_desc.setText(
+                "💡 Tinh gọn mặc định: Ollama (llama3.1) lập kế hoạch đồ thị DAG; "
+                "OmniRoute Gateway (auto) soạn thảo chuyên sâu. DOCX tự động xuất bản."
+            )
+            self.frame_custom_providers.setVisible(False)
+        elif index == 1:
+            self.lbl_mode_desc.setText(
+                "💻 100% Offline: Toàn bộ quy trình lập kế hoạch và soạn thảo chạy trên máy cá nhân qua Ollama (llama3.1). "
+                "Bảo mật nội bộ tuyệt đối, không gửi dữ liệu ra bên ngoài."
+            )
+            self.frame_custom_providers.setVisible(False)
+        elif index == 2:
+            self.lbl_mode_desc.setText(
+                "☁️ Cloud Gateway: Lập kế hoạch và soạn thảo đều được ủy quyền xử lý qua OmniRoute AI Gateway."
+            )
+            self.frame_custom_providers.setVisible(False)
+        elif index == 3:
+            self.lbl_mode_desc.setText(
+                "⚙️ Tùy chỉnh Nâng cao: Tự cấu hình nhà cung cấp AI, mô hình và phân vai riêng cho từng tác vụ."
+            )
+            self.frame_custom_providers.setVisible(True)
+
     def _on_provider_changed(self, index: int):
         prov = self.combo_provider.currentText()
         self._populate_model_combo(self.combo_model, prov)
@@ -573,33 +632,65 @@ class MainWindow(QMainWindow):
             return
 
         dry_run = self.cb_dry_run.isChecked()
-        provider = self.combo_provider.currentText()
-        model = self.combo_model.currentText()
+        mode_idx = self.combo_pipeline_mode.currentIndex()
 
-        # Streamlined Multi-Agent Role Assignment:
-        # Default: Local AI (Ollama) plans tasks, Cloud AI (OmniRoute) generates content
-        if self.cb_multi_agent.isChecked() and not dry_run:
-            planner_provider = self.combo_cmd_prov.currentText()
-            planner_model = self.combo_cmd_model.currentText()
-            writer_provider = self.combo_worker_prov.currentText()
-            writer_model = self.combo_worker_model.currentText()
-            reviewer_provider = self.combo_rev_prov.currentText()
-            reviewer_model = self.combo_rev_model.currentText()
-        elif not dry_run and provider == "omniroute":
-            # Streamlined pipeline: Ollama (Local AI) as Commander, OmniRoute as Cloud Worker
+        if dry_run:
+            provider = "mock"
+            model = "mock-model"
+            planner_provider = "mock"
+            planner_model = "mock-model"
+            writer_provider = "mock"
+            writer_model = "mock-model"
+            reviewer_provider = "mock"
+            reviewer_model = "mock-model"
+        elif mode_idx == 0:
+            # Mode 0: Default Streamlined (Ollama -> OmniRoute)
+            provider = "omniroute"
+            model = "auto"
             planner_provider = "ollama"
             planner_model = "llama3.1"
             writer_provider = "omniroute"
-            writer_model = model or "auto"
+            writer_model = "auto"
             reviewer_provider = "omniroute"
-            reviewer_model = model or "auto"
+            reviewer_model = "auto"
+        elif mode_idx == 1:
+            # Mode 1: 100% Offline Ollama
+            provider = "ollama"
+            model = "llama3.1"
+            planner_provider = "ollama"
+            planner_model = "llama3.1"
+            writer_provider = "ollama"
+            writer_model = "llama3.1"
+            reviewer_provider = "ollama"
+            reviewer_model = "llama3.1"
+        elif mode_idx == 2:
+            # Mode 2: OmniRoute Gateway for all
+            provider = "omniroute"
+            model = "auto"
+            planner_provider = "omniroute"
+            planner_model = "auto"
+            writer_provider = "omniroute"
+            writer_model = "auto"
+            reviewer_provider = "omniroute"
+            reviewer_model = "auto"
         else:
-            planner_provider = provider
-            planner_model = model
-            writer_provider = provider
-            writer_model = model
-            reviewer_provider = provider
-            reviewer_model = model
+            # Mode 3: Custom / Advanced Multi-Provider
+            provider = self.combo_provider.currentText()
+            model = self.combo_model.currentText()
+            if self.cb_multi_agent.isChecked():
+                planner_provider = self.combo_cmd_prov.currentText()
+                planner_model = self.combo_cmd_model.currentText()
+                writer_provider = self.combo_worker_prov.currentText()
+                writer_model = self.combo_worker_model.currentText()
+                reviewer_provider = self.combo_rev_prov.currentText()
+                reviewer_model = self.combo_rev_model.currentText()
+            else:
+                planner_provider = provider
+                planner_model = model
+                writer_provider = provider
+                writer_model = model
+                reviewer_provider = provider
+                reviewer_model = model
 
         # Create Job
         self.current_job = self.job_manager.create_job(

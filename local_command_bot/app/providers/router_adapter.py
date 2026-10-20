@@ -261,3 +261,25 @@ class RouterAdapter(BaseProviderAdapter):
             return True
         except Exception as e:
             raise self.normalize_error(e)
+
+    def normalize_error(self, exc: Exception) -> ProviderError:
+        """Provide specific diagnostic advice for local Ollama and OmniRoute connection issues."""
+        if isinstance(exc, httpx.ConnectError):
+            if "11434" in self.base_url or "ollama" in self.base_url.lower():
+                return ProviderError(
+                    f"Không thể kết nối đến máy chủ Ollama tại {self.base_url}. "
+                    f"Vui lòng đảm bảo Ollama đã được cài đặt và đang chạy (gõ lệnh 'ollama serve' trong Terminal).",
+                    is_transient=True
+                )
+            if "20128" in self.base_url or "omniroute" in self.base_url.lower():
+                return ProviderError(
+                    f"Không thể kết nối đến OmniRoute AI Gateway tại {self.base_url}. "
+                    f"Vui lòng khởi động tiến trình OmniRoute Gateway trước khi tiếp tục.",
+                    is_transient=True
+                )
+            return ProviderError(
+                f"Lỗi kết nối tới AI Gateway ({self.base_url}): Không thể thiết lập kết nối mạng tới máy chủ.",
+                is_transient=True
+            )
+        return super().normalize_error(exc)
+
