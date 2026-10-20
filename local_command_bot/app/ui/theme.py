@@ -263,6 +263,7 @@ STATUS_COLORS = {
     "PENDING": "#64748B",    # Slate
     "READY": "#0EA5E9",      # Sky
     "RUNNING": "#38BDF8",    # Cyan
+    "VALIDATING": "#8B5CF6", # Violet / Quality Review
     "SUCCEEDED": "#10B981",  # Emerald
     "FAILED": "#F43F5E",     # Rose
     "RETRYING": "#F59E0B",   # Amber

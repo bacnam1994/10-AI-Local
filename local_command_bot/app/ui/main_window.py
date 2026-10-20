@@ -251,7 +251,7 @@ class MainWindow(QMainWindow):
         row_prov.addWidget(QLabel("Nhà cung cấp chung:"))
         self.combo_provider = QComboBox()
         self.combo_provider.addItems([
-            "openai", "anthropic", "gemini", "groq", "openrouter", "deepseek", "ollama", "custom", "mock"
+            "openai", "omniroute", "groq", "anthropic", "gemini", "deepseek", "huggingface", "openrouter", "ollama", "custom", "mock"
         ])
         self.combo_provider.currentIndexChanged.connect(self._on_provider_changed)
         row_prov.addWidget(self.combo_provider)
@@ -284,7 +284,7 @@ class MainWindow(QMainWindow):
         ma_layout.addWidget(lbl_cmd)
         row_cmd = QHBoxLayout()
         self.combo_cmd_prov = QComboBox()
-        self.combo_cmd_prov.addItems(["ollama", "groq", "openai", "anthropic", "gemini", "deepseek", "huggingface", "openrouter", "custom", "mock"])
+        self.combo_cmd_prov.addItems(["ollama", "omniroute", "groq", "openai", "anthropic", "gemini", "deepseek", "huggingface", "openrouter", "custom", "mock"])
         self.combo_cmd_model = QComboBox()
         self.combo_cmd_prov.currentIndexChanged.connect(lambda: self._populate_model_combo(self.combo_cmd_model, self.combo_cmd_prov.currentText()))
         self._populate_model_combo(self.combo_cmd_model, "ollama")
@@ -298,7 +298,7 @@ class MainWindow(QMainWindow):
         ma_layout.addWidget(lbl_wrk)
         row_wrk = QHBoxLayout()
         self.combo_worker_prov = QComboBox()
-        self.combo_worker_prov.addItems(["auto", "groq", "huggingface", "openai", "deepseek", "anthropic", "gemini", "ollama", "openrouter", "custom", "mock"])
+        self.combo_worker_prov.addItems(["auto", "omniroute", "groq", "huggingface", "openai", "deepseek", "anthropic", "gemini", "ollama", "openrouter", "custom", "mock"])
         self.combo_worker_model = QComboBox()
         self.combo_worker_prov.currentIndexChanged.connect(lambda: self._populate_model_combo(self.combo_worker_model, self.combo_worker_prov.currentText()))
         self._populate_model_combo(self.combo_worker_model, "auto")
@@ -312,7 +312,7 @@ class MainWindow(QMainWindow):
         ma_layout.addWidget(lbl_rev)
         row_rev = QHBoxLayout()
         self.combo_rev_prov = QComboBox()
-        self.combo_rev_prov.addItems(["ollama", "openai", "gemini", "anthropic", "groq", "deepseek", "huggingface", "openrouter", "custom", "mock"])
+        self.combo_rev_prov.addItems(["ollama", "omniroute", "openai", "gemini", "anthropic", "groq", "deepseek", "huggingface", "openrouter", "custom", "mock"])
         self.combo_rev_model = QComboBox()
         self.combo_rev_prov.currentIndexChanged.connect(lambda: self._populate_model_combo(self.combo_rev_model, self.combo_rev_prov.currentText()))
         self._populate_model_combo(self.combo_rev_model, "ollama")
@@ -510,6 +510,18 @@ class MainWindow(QMainWindow):
                 "meta-llama/Meta-Llama-3-70B-Instruct",
                 "Qwen/Qwen2.5-72B-Instruct",
                 "mistralai/Mixtral-8x7B-Instruct-v0.1"
+            ])
+        elif prov == "omniroute":
+            combo.setEditable(True)
+            combo.addItems([
+                "auto",
+                "anthropic/claude-3.5-sonnet",
+                "openai/gpt-4o",
+                "openai/gpt-4o-mini",
+                "groq/llama-3.3-70b-versatile",
+                "deepseek/deepseek-chat",
+                "mistral/mistral-large-latest",
+                "google/gemini-1.5-pro"
             ])
         elif prov == "auto":
             combo.setEditable(False)

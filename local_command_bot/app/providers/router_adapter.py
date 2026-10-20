@@ -75,6 +75,22 @@ GATEWAY_PRESETS = {
             "mistralai/Mixtral-8x7B-Instruct-v0.1"
         ],
         "default_model": "mistralai/Mistral-7B-Instruct-v0.3"
+    },
+    "omniroute": {
+        "name": "OmniRoute AI Gateway",
+        "base_url": "http://localhost:20128/v1",
+        "env_var": "OMNIROUTE_API_KEY",
+        "models": [
+            "auto",
+            "anthropic/claude-3.5-sonnet",
+            "openai/gpt-4o",
+            "openai/gpt-4o-mini",
+            "groq/llama-3.3-70b-versatile",
+            "deepseek/deepseek-chat",
+            "mistral/mistral-large-latest",
+            "google/gemini-1.5-pro"
+        ],
+        "default_model": "auto"
     }
 }
 

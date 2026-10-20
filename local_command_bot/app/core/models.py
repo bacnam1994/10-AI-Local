@@ -16,6 +16,7 @@ class TaskStatus(str, Enum):
     PENDING = "PENDING"
     READY = "READY"
     RUNNING = "RUNNING"
+    VALIDATING = "VALIDATING"
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     RETRYING = "RETRYING"

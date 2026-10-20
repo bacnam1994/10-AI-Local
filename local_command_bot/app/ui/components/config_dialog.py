@@ -146,10 +146,27 @@ class ConfigDialog(QDialog):
         row_hf.addWidget(btn_test_hf)
         group_layout.addRow(QLabel("Hugging Face Key:"), row_hf)
 
-        # 8. Custom Router / Ollama Gateway Base URL
+        # 8. OmniRoute AI Gateway (http://localhost:20128/v1)
+        self.omniroute_input = QLineEdit()
+        self.omniroute_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.omniroute_input.setPlaceholderText("API key nếu có (hoặc để trống cho local gateway)")
+        self.omniroute_url_input = QLineEdit()
+        self.omniroute_url_input.setPlaceholderText("http://localhost:20128/v1")
+        btn_test_omniroute = QPushButton("Kiểm tra")
+        btn_test_omniroute.clicked.connect(
+            lambda: self._test_connection("omniroute", self.omniroute_input.text())
+        )
+
+        row_omni = QHBoxLayout()
+        row_omni.addWidget(self.omniroute_input, 6)
+        row_omni.addWidget(btn_test_omniroute, 4)
+        group_layout.addRow(QLabel("OmniRoute Key:"), row_omni)
+        group_layout.addRow(QLabel("OmniRoute Gateway URL:"), self.omniroute_url_input)
+
+        # 9. Custom Router / Ollama Gateway Base URL
         self.router_url_input = QLineEdit()
         self.router_url_input.setPlaceholderText("http://localhost:11434/v1 (Ollama) hoặc proxy riêng")
-        group_layout.addRow(QLabel("Custom Gateway URL:"), self.router_url_input)
+        group_layout.addRow(QLabel("Ollama / Custom URL:"), self.router_url_input)
 
         layout.addWidget(group)
 
@@ -175,6 +192,8 @@ class ConfigDialog(QDialog):
         self.deepseek_input.setText(secret_manager.get_api_key("deepseek") or "")
         self.openrouter_input.setText(secret_manager.get_api_key("openrouter") or "")
         self.huggingface_input.setText(secret_manager.get_api_key("huggingface") or "")
+        self.omniroute_input.setText(secret_manager.get_api_key("omniroute") or "")
+        self.omniroute_url_input.setText(secret_manager.get_api_key("omniroute_url") or "http://localhost:20128/v1")
         self.router_url_input.setText(secret_manager.get_api_key("custom_gateway_url") or "http://localhost:11434/v1")
 
     def _save_keys(self):
@@ -185,7 +204,11 @@ class ConfigDialog(QDialog):
         secret_manager.set_api_key("deepseek", self.deepseek_input.text().strip())
         secret_manager.set_api_key("openrouter", self.openrouter_input.text().strip())
         secret_manager.set_api_key("huggingface", self.huggingface_input.text().strip())
+        secret_manager.set_api_key("omniroute", self.omniroute_input.text().strip())
         
+        omni_url = self.omniroute_url_input.text().strip() or "http://localhost:20128/v1"
+        secret_manager.set_api_key("omniroute_url", omni_url)
+
         custom_url = self.router_url_input.text().strip() or "http://localhost:11434/v1"
         secret_manager.set_api_key("custom_gateway_url", custom_url)
 

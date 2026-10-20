@@ -77,3 +77,14 @@ def test_get_adapter_huggingface_factory():
     assert adapter.api_url == "https://api-inference.huggingface.co/v1/chat/completions"
     assert adapter.default_model == "mistralai/Mistral-7B-Instruct-v0.3"
     assert adapter.validate_config()
+
+
+def test_get_adapter_omniroute_factory():
+    # OmniRoute on http://localhost:20128/v1
+    adapter = get_adapter("omniroute", model="auto")
+    assert isinstance(adapter, RouterAdapter)
+    assert adapter.api_url == "http://localhost:20128/v1/chat/completions"
+    assert adapter.default_model == "auto"
+    assert adapter.validate_config()
+    assert "auto" in adapter.list_models()
+    assert "anthropic/claude-3.5-sonnet" in adapter.list_models()

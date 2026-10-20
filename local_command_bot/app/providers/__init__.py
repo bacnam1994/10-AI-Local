@@ -50,7 +50,14 @@ def get_adapter(
             default_model=model or "llama3.1",
             base_url=ollama_url
         )
-    elif p_clean in ("openrouter", "router", "omnirouter"):
+    elif p_clean in ("omniroute", "omni"):
+        omni_url = base_url or secret_manager.get_api_key("omniroute_url") or "http://localhost:20128/v1"
+        return RouterAdapter(
+            api_key=resolved_key or secret_manager.get_api_key("omniroute") or "omniroute-local",
+            default_model=model or "auto",
+            base_url=omni_url
+        )
+    elif p_clean in ("openrouter", "router"):
         router_url = base_url or secret_manager.get_api_key("openrouter_url") or "https://openrouter.ai/api/v1"
         return RouterAdapter(
             api_key=resolved_key or secret_manager.get_api_key("openrouter"),
