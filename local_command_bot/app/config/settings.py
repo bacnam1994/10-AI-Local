@@ -37,7 +37,15 @@ class AppSettings(BaseModel):
     default_max_retries: int = 3
     default_timeout_seconds: float = 90.0
     default_budget_limit_usd: float = 5.0
-    max_review_rounds: int = 2
+    max_review_rounds: int = 1  # Streamlined: single targeted repair if defect detected
+    
+    # Streamlined Pipeline Defaults: Local AI (Ollama) -> Cloud AI (OmniRoute) -> DOCX
+    default_planner_provider: str = "ollama"
+    default_planner_model: str = "llama3.1"
+    default_writer_provider: str = "omniroute"
+    default_writer_model: str = "auto"
+    omniroute_base_url: str = "http://localhost:20128/v1"
+    ollama_base_url: str = "http://localhost:11434/v1"
     
     # Price table (estimated USD per 1M tokens - prompt / completion)
     price_table: dict[str, tuple[float, float]] = Field(

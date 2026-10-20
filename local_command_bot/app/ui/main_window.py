@@ -219,12 +219,12 @@ class MainWindow(QMainWindow):
         out_layout = QVBoxLayout(out_group)
 
         fmt_layout = QHBoxLayout()
-        self.cb_docx = QCheckBox("DOCX (Word)")
+        self.cb_docx = QCheckBox("DOCX (Word - Ưu tiên chính)")
         self.cb_docx.setChecked(True)
-        self.cb_pdf = QCheckBox("PDF (Bản in)")
-        self.cb_pdf.setChecked(True)
-        self.cb_md = QCheckBox("Markdown (Nguồn)")
-        self.cb_md.setChecked(True)
+        self.cb_pdf = QCheckBox("PDF (Tùy chọn)")
+        self.cb_pdf.setChecked(False)
+        self.cb_md = QCheckBox("Markdown (Trung gian)")
+        self.cb_md.setChecked(False)
         fmt_layout.addWidget(self.cb_docx)
         fmt_layout.addWidget(self.cb_pdf)
         fmt_layout.addWidget(self.cb_md)
@@ -243,24 +243,24 @@ class MainWindow(QMainWindow):
         layout.addWidget(out_group)
 
         # Group 3: AI Provider & Models Selection
-        model_group = QGroupBox("3. Thiết lập AI Chỉ Huy & Phân Bổ Vai Trò")
+        model_group = QGroupBox("3. Cổng AI: OmniRoute Gateway (Cloud) & Ollama (Local)")
         model_layout = QVBoxLayout(model_group)
 
         # Basic Single Provider Row
         row_prov = QHBoxLayout()
-        row_prov.addWidget(QLabel("Nhà cung cấp chung:"))
+        row_prov.addWidget(QLabel("Cổng kết nối AI:"))
         self.combo_provider = QComboBox()
         self.combo_provider.addItems([
-            "openai", "omniroute", "groq", "anthropic", "gemini", "deepseek", "huggingface", "openrouter", "ollama", "custom", "mock"
+            "omniroute", "ollama", "groq", "openai", "anthropic", "gemini", "deepseek", "huggingface", "openrouter", "custom", "mock"
         ])
         self.combo_provider.currentIndexChanged.connect(self._on_provider_changed)
         row_prov.addWidget(self.combo_provider)
         model_layout.addLayout(row_prov)
 
         row_model = QHBoxLayout()
-        row_model.addWidget(QLabel("Mô hình chung (Model):"))
+        row_model.addWidget(QLabel("Mô hình AI (Model):"))
         self.combo_model = QComboBox()
-        self.combo_model.addItems(["gpt-4o-mini", "gpt-4o"])
+        self._populate_model_combo(self.combo_model, "omniroute")
         row_model.addWidget(self.combo_model)
         model_layout.addLayout(row_model)
 
@@ -542,7 +542,7 @@ class MainWindow(QMainWindow):
             self.combo_provider.setCurrentText("mock")
         else:
             if self.combo_provider.currentText() == "mock":
-                self.combo_provider.setCurrentText("openai")
+                self.combo_provider.setCurrentText("omniroute")
 
     def _browse_output_dir(self):
         folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục lưu kết quả", str(settings.outputs_dir))
@@ -576,7 +576,8 @@ class MainWindow(QMainWindow):
         provider = self.combo_provider.currentText()
         model = self.combo_model.currentText()
 
-        # Multi-Agent Role overrides
+        # Streamlined Multi-Agent Role Assignment:
+        # Default: Local AI (Ollama) plans tasks, Cloud AI (OmniRoute) generates content
         if self.cb_multi_agent.isChecked() and not dry_run:
             planner_provider = self.combo_cmd_prov.currentText()
             planner_model = self.combo_cmd_model.currentText()
@@ -584,6 +585,14 @@ class MainWindow(QMainWindow):
             writer_model = self.combo_worker_model.currentText()
             reviewer_provider = self.combo_rev_prov.currentText()
             reviewer_model = self.combo_rev_model.currentText()
+        elif not dry_run and provider == "omniroute":
+            # Streamlined pipeline: Ollama (Local AI) as Commander, OmniRoute as Cloud Worker
+            planner_provider = "ollama"
+            planner_model = "llama3.1"
+            writer_provider = "omniroute"
+            writer_model = model or "auto"
+            reviewer_provider = "omniroute"
+            reviewer_model = model or "auto"
         else:
             planner_provider = provider
             planner_model = model

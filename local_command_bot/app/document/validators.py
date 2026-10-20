@@ -28,6 +28,18 @@ class ValidationReport(BaseModel):
 class DocumentValidator:
     """Validates synthesized document content before publication."""
 
+    def check_section_defects(self, text: str) -> list[str]:
+        """Fast code-based check for drafting defects (placeholders, empty text)."""
+        defects = []
+        if not text or len(text.strip()) < 30:
+            defects.append("Nội dung quá ngắn hoặc chưa hoàn chỉnh (< 30 ký tự).")
+            return defects
+        for pattern in PLACEHOLDER_PATTERNS:
+            matches = pattern.findall(text)
+            if matches:
+                defects.append(f"Chứa placeholder chưa điền: {', '.join(matches)}")
+        return defects
+
     def validate(
         self,
         full_text: str,
@@ -70,3 +82,4 @@ class DocumentValidator:
             missing_citations=missing_citations,
             warnings=warnings
         )
+
